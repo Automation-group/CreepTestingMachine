@@ -1,0 +1,32 @@
+# Example configuration for the creep server
+# Copy this file to config.yaml and edit as needed.
+
+log:
+  level: "info" # "debug", "info", "warn", "error"
+  format: "text" # "text" or "json"
+
+server:
+  address: ":6380"
+  password: "supersecretpassword"
+
+experiment:
+  deformation_coeff: 0.439822972
+  data_file: "experiment.json"
+  force_coefficients:
+    a: 2016.3
+    b: 0.059543
+    c: 73.4
+
+serial:
+  baud: 115200
+
+devices:
+  driver:
+    id: "ID=201602-creep-driver"
+  indicator:
+    id: "ID=indikator16_20160209"
+  forcesensor:
+    id: "ID2f8771d5ebf55e0983210304c6d5197e"
+  metakon:
+    id: "ID=metakon-commander-201603"
+

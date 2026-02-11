@@ -1,0 +1,232 @@
+Установка и настройка Raspbian для Raspberry Pi3
+1) Установка утилиты для записи и настройки ОС на Raspberry Pi3+
+sudo apt install rpi-imager
+
+2) Запускаем rpi-imager и устанавливаем Ubuntu Server (x64) LTS
+rpi-imager
+# login: ubuntu pass: lab5_lab5
+
+3) Настройка proxy
+sudo nano /etc/apt/apt.conf.d/proxy50
+
+Acquire::http::Proxy "http://proxy.ptri.dom:8080/";
+Acquire::https::Proxy "https://proxy.ptri.dom:8080/";
+
+sudo apt update
+sudo apt upgrade
+
+4) Установка утилит
+# ifconfig
+sudo apt install net-tools
+# samba server
+sudo apt install samba
+# dhcp client
+sudo apt install isc-dhcp-client
+
+5) Скорпировать программу сервера creep-server в каталог /home/ubuntu/creep-server/creep-server
+
+
+Сборка creep server
+Устанавливаем языка go и сторонние библиотеки к нему
+1) Загружаем последнюю версию языка go, например go1.24.4.linux-amd64.tar.gz
+
+2) Распаковываме архив по адресу /usr/local
+sudo tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
+
+3) Добавляем go в PATH в конце файла
+sudo nano ~/.profile
+
+# go language
+export PATH=$PATH:/usr/local/go/bin
+# working directory
+export GOPATH=$HOME/go
+export PATH=$PATH:$GOPATH/bin
+
+4) Создаём рабочую директорию и выполняем внесённые изменения
+mkdir -p $HOME/go/{bin,src}
+source ~/.profile
+
+5) Проверяем установку. После установки лучше сделать reboot
+echo $PATH
+go version
+
+6) Инициализаци внешних модулей для go
+go mod init github.com/tarm/serial
+go mod init github.com/tidwall/redcon
+go get -v github.com/tarm/serial
+go get -v github.com/tidwall/redcon
+
+7) Сборка проекта (последняя версия creep-server 1.2 от 22.07.2025)
+./build.sh
+
+
+
+Настройка creep server
+1) Настройка автозагрузки creep-server
+1.1) Проверямем статус rc-local
+sudo systemctl status rc-local
+
+1.2) Если автозагрузка не доступна то востановим её
+sudo nano /etc/rc.local
+
+#!/bin/sh -e
+
+nohup /home/ubuntu/creep-server/creep-server &
+exit 0
+
+1.3) Даём права на исполнение
+sudo chmod +x /etc/rc.local
+
+1.4) Добавляем в сервис rc-local.service следующие строки
+sudo nano /etc/systemd/system/rc-local.service
+
+[Unit]
+Description=/etc/rc.local Compatibility
+ConditionPathExists=/etc/rc.local
+
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+StandardOutput=tty
+RemainAfterExit=yes
+SysVStartPriority=99
+
+[Install]
+WantedBy=multi-user.target
+
+1.5) Включаем автозагрузку
+systemctl enable rc-local.service
+systemctl start rc-local.service
+
+1.6) Проверямем статус rc-local
+sudo systemctl status rc-local
+
+2) Копируем собранную программу в домашний каталог и добавляем её автозагрузку
+в rc.local до строки exit 0
+sudo nano /etc/rc.local
+nohup /home/ubuntu/creep-server/creep-server &
+
+3) Изменяем имя хоста для creep-server
+3.1) Изменяем hostname
+sudo nano  /etc/hostname
+creep-srv
+# или
+sudo hostnamectl set-hostname
+
+# Проверяем имя хоста
+hostnamectl
+
+# Так же нужно венести изменения в hosts
+127.0.1.1 creep-srv creep-srv
+
+3.2) Отключаем автогенерацию файла hosts и hostname
+Если автогенерацию не выключить то файл hosts и hostname
+при перезагрузке будут сгенерированы по умолчанию заново
+
+sudo nano /etc/cloud/templates/hosts.debian.tmpl
+# Изменяем настройку на True
+manage_etc_hosts: True
+
+sudo nano /etc/cloud/cloud.cfg
+# Выключаем автогенерацию hostname
+preserve_hostname: false
+
+# Комментируем строки
+#  - update_hostname
+#  - update_etc_hosts
+
+4) Добавляем имя клиента для creep-server перед строкой request
+sudo nano /etc/dhcp/dhclient.conf
+send host-name = "creep-srv";
+
+5) Конфигурация интерфейса сети с статическим IP
+sudo nano /etc/netplan/99_config.yaml
+
+network:
+  ethernets:
+    eth0:
+      addresses:
+       - 192.168.1.2/24
+      routes:
+       - to: default
+         via: 192.168.1.1
+      dhcp4: no
+      optional: true
+  version: 2
+
+# Применяем изменения
+sudo netplan apply
+
+6) Если для подключения к сети используется прокси сервер то его нужно удалить.
+Если этого не сделать до creep-srv будет недоступен.
+sudo rm /etc/apt/apt.conf.d/50proxy
+
+7) Изменить пароль пользователя или root
+В первой версии установки Ползучесть пароли пользователя ubuntu и root были dddddddddd
+# Изменение пароля USER
+sudo passwd USER
+# Изменение пароля root
+sudo su
+passwd
+
+8) Настройка ПК на Windows 10/11
+Устанавливаем на ПК статический IP адрес например 192.168.1.100
+Прописываем в windows\system32\drivers\etc\hosts имя нового сервера
+# creep server
+192.168.1.2 creep-srv
+
+
+
+Разобраться для чего нужен интсрумен для тестирования работы HTTP
+в сборке сервера
+https://github.com/wg/wrk
+
+###############################
+// Полезные команды и программы
+###############################
+# Перезагрузка системы
+sudo shutdown -r now
+# или
+sudo reboot
+
+# Выключить систему
+sudo shutdown now
+
+# Монитор ресурсов
+top
+
+# Температура процессора Raspberry Pi
+vcgencmd measure_temp
+# или
+/opt/vc/bin/vcgencmd measure_temp
+
+# Программа Putty для Windows для подключения к Raspberry Pi3 с Ubuntu Server через ssh
+
+#################################################
+// Изменения, которые нужно внести в creep-server
+#################################################
+
+1) Добавить в дирректорию /var/log/ файл с логами сервера creep-srv.log
+ - когда сервер был запущен
+ - когда к серверу было произведено подключение по ethernet и кто был подключен
+ - когда было подключенные устройств: меатакон, тензодатчик, контроллер ШД, инидкаторы
+ - когда устройства "отвалились" и/или были подключены заново
+ - ограничить лог файл 1000 строк
+
+2) Добавить конфигурационный файл для сервера
+ - имя сервера creep-srv по умолчанию
+ - порт сервера по умолчанию 6380
+ - пароль и логин если они есть
+
+
+
+###############################################
+// Изменения, которые нужно внести в creep-test
+###############################################
+
+1) Добавить текстовый файл конфигурации creep-test-srv.conf
+ - имя сервера creep-srv по умолчанию
+ - порт сервера по умолчанию 6380
+ - пароль и логин если они есть
+
